@@ -7,6 +7,7 @@ from .frameworks.nessus import NessusAPI
 from .frameworks.qualys_web import qualysScanReport
 from .frameworks.qualys_vuln import qualysVulnScan
 from .frameworks.openvas import OpenVAS_API
+from .frameworks.gvm import GVM_API
 from .reporting.jira_api import JiraAPI
 import pandas as pd
 from lxml import objectify
@@ -1288,6 +1289,147 @@ class vulnWhispererJIRA(vulnWhispererBase):
             return True
         return False
 
+
+class vulnWhispererGVM(vulnWhispererBase):
+    CONFIG_SECTION = 'gvm'
+    COLUMN_MAPPING = {'IP': 'asset',
+                      'Hostname': 'hostname',
+                      'Port': 'port',
+                      'Port Protocol': 'protocol',
+                      'CVSS': 'cvss',
+                      'Severity': 'severity',
+                      'Solution Type': 'category',
+                      'NVT Name': 'plugin_name',
+                      'Summary': 'synopsis',
+                      'Specific Result': 'plugin_output',
+                      'NVT OID': 'nvt_oid',
+                      'Task ID': 'task_id',
+                      'Task Name': 'task_name',
+                      'Timestamp': 'timestamp',
+                      'Result ID': 'result_id',
+                      'Impact': 'description',
+                      'Solution': 'solution',
+                      'Affected Software/OS': 'affected_software',
+                      'Vulnerability Insight': 'vulnerability_insight',
+                      'Vulnerability Detection Method': 'vulnerability_detection_method',
+                      'Product Detection Result': 'product_detection_result',
+                      'BIDs': 'bids',
+                      'CERTs': 'certs',
+                      'Other References': 'see_also'
+                      }
+
+    def __init__(
+            self,
+            config=None,
+            db_name='report_tracker.db',
+            purge=False,
+            verbose=None,
+            debug=False,
+            username=None,
+            password=None,
+    ):
+        super(vulnWhispererGVM, self).__init__(config=config)
+        self.logger = logging.getLogger('vulnWhispererGVM')
+        if debug:
+            self.logger.setLevel(logging.DEBUG)
+
+        self.directory_check()
+        self.port = int(self.config.get(self.CONFIG_SECTION, 'port'))
+        self.develop = True
+        self.purge = purge
+        self.scans_to_process = None
+        try:
+            self.gvm_api = GVM_API(hostname=self.hostname,
+                                           port=self.port,
+                                           username=self.username,
+                                           password=self.password)
+        except Exception as e:
+            self.logger.error("Unable to establish connection with GVM scanner. Reason: {}".format(e))
+            return False
+
+    def whisper_reports(self, output_format='json', launched_date=None, report_id=None, cleanup=True):
+        report = None
+        if report_id:
+            self.logger.info('Processing report ID: {}'.format(report_id))
+
+
+            scan_name = report_id.replace('-', '')
+            report_name = 'gvm_scan_{scan_name}_{last_updated}.{extension}'.format(scan_name=scan_name,
+                                                                                       last_updated=launched_date,
+                                                                                       extension=output_format)
+            relative_path_name = self.path_check(report_name).encode('utf8')
+            scan_reference = report_id
+
+            if os.path.isfile(relative_path_name):
+                # TODO Possibly make this optional to sync directories
+                file_length = len(open(relative_path_name).readlines())
+                record_meta = (
+                    scan_name,
+                    scan_reference,
+                    launched_date,
+                    report_name,
+                    time.time(),
+                    file_length,
+                    self.CONFIG_SECTION,
+                    report_id,
+                    1,
+                    0,
+                )
+                self.record_insert(record_meta)
+                self.logger.info('File {filename} already exist! Updating database'.format(filename=relative_path_name))
+
+                record_meta = (
+                    scan_name,
+                    scan_reference,
+                    launched_date,
+                    report_name,
+                    time.time(),
+                    file_length,
+                    self.CONFIG_SECTION,
+                    report_id,
+                    1,
+                )
+
+            else:
+                vuln_ready = self.gvm_api.process_report(report_id=report_id)
+                vuln_ready['scan_name'] = scan_name
+                vuln_ready['scan_reference'] = report_id
+                vuln_ready.rename(columns=self.COLUMN_MAPPING, inplace=True)
+                vuln_ready.port = vuln_ready.port.fillna(0).astype(int)
+                vuln_ready.fillna('', inplace=True)
+                if output_format == 'json':
+                    with open(relative_path_name, 'w') as f:
+                        f.write(vuln_ready.to_json(orient='records', lines=True))
+                        f.write('\n')
+                self.logger.info('Report written to {}'.format(report_name))
+
+        return report
+
+    def identify_scans_to_process(self):
+        if self.uuids:
+            self.scans_to_process = self.gvm_api.gvm_reports[
+                ~self.gvm_api.gvm_reports.report_ids.isin(self.uuids)]
+        else:
+            self.scans_to_process = self.gvm_api.gvm_reports
+        self.logger.info('Identified {new} scans to be processed'.format(new=len(self.scans_to_process)))
+
+    def process_gvm_scans(self):
+        counter = 0
+        self.identify_scans_to_process()
+        if self.scans_to_process.shape[0]:
+            for scan in self.scans_to_process.iterrows():
+                counter += 1
+                info = scan[1]
+                self.logger.info('Processing {}/{} - Report ID: {}'.format(counter, len(self.scans_to_process), info['report_ids']))
+                self.whisper_reports(report_id=info['report_ids'],
+                                     launched_date=info['epoch'])
+            self.logger.info('Processing complete')
+        else:
+            self.logger.info('No new scans to process. Exiting...')
+        self.conn.close()
+        return self.exit_code
+
+
 class vulnWhisperer(object):
 
     def __init__(self,
@@ -1329,6 +1471,11 @@ class vulnWhisperer(object):
             vw = vulnWhispererOpenVAS(config=self.config)
             if vw:
                 self.exit_code += vw.process_openvas_scans()
+
+        elif self.profile == 'gvm':
+            vw = vulnWhispererGVM(config=self.config)
+            if vw:
+                self.exit_code += vw.process_gvm_scans()
 
         elif self.profile == 'tenable':
             vw = vulnWhispererNessus(config=self.config,

@@ -21,6 +21,7 @@ Currently Supports
 - [X] [Qualys Web Applications](https://www.qualys.com/apps/web-app-scanning/)
 - [X] [Qualys Vulnerability Management](https://www.qualys.com/apps/vulnerability-management/)
 - [X] [OpenVAS (**v7**/**v8**/**v9**)](http://www.openvas.org/)
+- [X] [GVM (**v10+**)](https://greenbone.github.io/docs/latest/)
 - [X] [Tenable.io](https://www.tenable.com/products/tenable-io)
 - [ ] [Detectify](https://detectify.com/)
 - [ ] [Nexpose](https://www.rapid7.com/products/nexpose/)
@@ -32,7 +33,7 @@ Currently Supports
 
 ### Reporting Frameworks
 
-- [X] [Elastic Stack (**v6**/**v7**)](https://www.elastic.co/elk-stack)
+- [X] [Elastic Stack (**v6**/**v7**/**v8**)](https://www.elastic.co/what-is/elk-stack)
 - [ ] [OpenSearch - Being considered for next update](https://opensearch.org/)
 - [X] [Jira](https://www.atlassian.com/software/jira)
 - [ ] [Splunk](https://www.splunk.com/)
@@ -165,6 +166,7 @@ Contributors
    - [Quim Montal (@qmontal)](https://github.com/qmontal)
    - [@pemontto](https://github.com/pemontto)
    - [@cybergoof](https://github.com/cybergoof)
+   - [Konstantin Kraynov (@evost)](https://github.com/evost)
 
 AS SEEN ON TV
 -------------
