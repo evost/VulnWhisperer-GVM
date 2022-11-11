@@ -54,7 +54,7 @@ class OpenVAS_API(object):
 
     def login(self):
         resp = self.get_token()
-        if resp.status_code is 200:
+        if resp.status_code == 200:
             xml_response = BeautifulSoup(resp.content, 'lxml')
             self.token = xml_response.find(attrs={'id': 'gsa-token'}).text
 

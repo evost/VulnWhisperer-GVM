@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 __author__ = 'Austin Taylor'
 
-from base.config import vwConfig
-from frameworks.nessus import NessusAPI
-from frameworks.qualys_web import qualysScanReport
-from frameworks.qualys_vuln import qualysVulnScan
-from frameworks.openvas import OpenVAS_API
-from reporting.jira_api import JiraAPI
+from .base.config import vwConfig
+from .frameworks.nessus import NessusAPI
+from .frameworks.qualys_web import qualysScanReport
+from .frameworks.qualys_vuln import qualysVulnScan
+from .frameworks.openvas import OpenVAS_API
+from .reporting.jira_api import JiraAPI
 import pandas as pd
 from lxml import objectify
 import sys
